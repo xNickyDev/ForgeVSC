@@ -6,6 +6,7 @@
 import {
     buildFunctionURL,
     ConditionOperatorInfo,
+    DocsUrl,
     findConditionOperator,
     findFunction,
     findGuide,
@@ -32,7 +33,8 @@ export function registerFunctionHover(ctx: vscode.ExtensionContext) {
         vscode.languages.registerHoverProvider(Languages, {
             async provideHover(document, position) {
                 const config = getExtensionConfig()
-                if (!locateCodeBlock(document, position) || !config.features.hoverInfo) return
+                const block = locateCodeBlock(document, position)
+                if (!block || !config.features.hoverInfo) return
 
                 const text = document.getText()
                 const offset = document.offsetAt(position)
@@ -40,13 +42,14 @@ export function registerFunctionHover(ctx: vscode.ExtensionContext) {
                 let fnMatch: RegExpExecArray | null
 
                 // Condition Operator hover
-                while ((fnMatch = RegexOpen.exec(text))) {
+                RegexOpen.lastIndex = block.start
+                while ((fnMatch = RegexOpen.exec(text)) && fnMatch.index < block.end) {
                     const found = await findFunction(fnMatch[0].slice(0, -1))
                     if (!found) continue
 
                     const { fn } = found
                     const openIndex = fnMatch.index + fnMatch[0].length - 1
-                    const closeIndex = findMatchingBracket(text, openIndex)
+                    const closeIndex = findMatchingBracket(text, openIndex, block.end)
                     if (closeIndex === -1) continue
 
                     const argText = text.slice(openIndex + 1, closeIndex)
@@ -60,7 +63,7 @@ export function registerFunctionHover(ctx: vscode.ExtensionContext) {
                         if (!op) continue
 
                         const start = openIndex + 1 + args[i].start + op.start
-                        if (isIgnored(text, start)) continue
+                        if (isIgnored(text, start, block)) continue
 
                         const end = openIndex + 1 + args[i].start + op.end
                         if (offset < start || offset > end) continue
@@ -85,7 +88,7 @@ export function registerFunctionHover(ctx: vscode.ExtensionContext) {
                     const opStart = operatorRange.start.character
 
                     const offset = document.offsetAt(new vscode.Position(position.line, opStart))
-                    if (isIgnored(text, offset)) return
+                    if (isIgnored(text, offset, block)) return
 
                     const dollar = line.lastIndexOf("$", opStart)
                     if (dollar === -1 || isEscaped(line, dollar)) return
@@ -118,7 +121,7 @@ export function registerFunctionHover(ctx: vscode.ExtensionContext) {
                 while ((match = Regex.exec(line))) {
                     const start = match.index
                     const offset = document.offsetAt(new vscode.Position(position.line, start))
-                    if (isEscaped(line, start) || isIgnored(text, offset)) continue
+                    if (isEscaped(line, start) || isIgnored(text, offset, block)) continue
 
                     const hasOpening = match[1] === "["
                     let end = start + match[0].length
@@ -150,7 +153,7 @@ export function registerFunctionHover(ctx: vscode.ExtensionContext) {
                             if (sourceUrl) links.push(`[$(github) ${vscode.l10n.t("Source")}](${sourceUrl})`)
                             const guide = await findGuide({ targetType: "function", targetName: name })
                             const pkgName = guide?.packageName || getPackageName(source)
-                            if (pkgName) links.push(`[$(extensions) ${vscode.l10n.t("Documentation")}](https://docs.botforge.org/function/${name}?p=${pkgName})`)
+                            if (pkgName) links.push(`[$(extensions) ${vscode.l10n.t("Documentation")}](${DocsUrl}function/${name}?p=${pkgName})`)
                             if (guide) {
                                 const cmd = vscode.Uri.parse(
                                     `command:forgevsc.previewGuide?${encodeURIComponent(JSON.stringify([guide.id]))}`

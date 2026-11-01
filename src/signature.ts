@@ -37,12 +37,12 @@ export function registerSignatureHelp(ctx: vscode.ExtensionContext) {
 
 class ForgeSignatureHelpProvider implements vscode.SignatureHelpProvider {
 	async provideSignatureHelp(document: vscode.TextDocument, position: vscode.Position) {
-		const code = locateCodeBlock(document, position)
+		const block = locateCodeBlock(document, position)
 		const config = getExtensionConfig()
-		if (!code || !config.features.signatureHelp || isIgnored(document.getText(), document.offsetAt(position)))
+		if (!block || !config.features.signatureHelp || isIgnored(document.getText(), document.offsetAt(position), block))
 			return null
 
-		const text = code.slice
+		const text = block.slice
 		const openIndex = findOpeningBracket(text)
 		if (openIndex === -1) return null
 

@@ -141,7 +141,7 @@ export function registerCommands(ctx: vscode.ExtensionContext) {
                 }
             }
 
-            const { enabledWorkspaces, rpc, ...Config } = Defaults
+            const { enabledWorkspaces, rpc, experimental, formatting, ...Config } = Defaults
             const content = JSON.stringify(Config, null, 2) + "\n"
             const text = new TextEncoder().encode(content)
             await vscode.workspace.fs.writeFile(uri, text)

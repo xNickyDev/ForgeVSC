@@ -1,5 +1,19 @@
 # Change Log
 
+## v1.3.0 <sub>(November 01, 2026)</sub>
+
+### Added
+- Added a setting to toggle experimental features
+- Added keyword variable diagnostics as an experimental feature
+- Added a diagnostic for unknown event types
+- Added diagnostic codes for all diagnostics
+- Added a quick fixes feature for diagnostic errors
+    - **Currently supported:** Invalid operator order, Duplicated operators, Missing brackets, Unknown event
+- Added highlighting to Number and Boolean arguments, including operands of conditions
+
+### Fixed
+- Fixed broken bracket diagnostics for multiple commands exported in an array
+
 ## v1.2.14 <sub>(October 17, 2026)</sub>
 
 ### Added

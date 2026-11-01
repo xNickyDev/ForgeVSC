@@ -139,7 +139,8 @@ export function registerColorPicker(ctx: vscode.ExtensionContext) {
                 while ((match = ScanRegex.exec(text))) {
                     const index = match.index
                     const startPos = document.positionAt(index)
-                    if (!locateCodeBlock(document, startPos) || isEscaped(text, index) || isIgnored(text, index)) continue
+                    const block = locateCodeBlock(document, startPos)
+                    if (!block || isEscaped(text, index) || isIgnored(text, index, block)) continue
 
                     const full = match[0]
                     if (!full.endsWith("[")) continue
@@ -149,7 +150,7 @@ export function registerColorPicker(ctx: vscode.ExtensionContext) {
 
                     const { fn } = found
                     const openIndex = index + full.length - 1
-                    const closeIndex = findMatchingBracket(text, openIndex)
+                    const closeIndex = findMatchingBracket(text, openIndex, block.end)
                     if (closeIndex === -1) continue
 
                     const argString = text.slice(openIndex + 1, closeIndex)

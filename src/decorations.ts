@@ -5,6 +5,7 @@
 
 import {
     cloneRegex,
+    ConditionOperators,
     findConditionOperator,
     findFunction,
     findMatchingBracket,
@@ -17,6 +18,7 @@ import {
     isOpeningBracket,
     Languages,
     locateCodeBlock,
+    ParsedArg,
     splitArgs
 } from "."
 import * as vscode from "vscode"
@@ -25,17 +27,23 @@ let decoFn: vscode.TextEditorDecorationType | null = null
 let decoDollar: vscode.TextEditorDecorationType | null = null
 let decoSemi: vscode.TextEditorDecorationType | null = null
 let decoCond: vscode.TextEditorDecorationType | null = null
+let decoNum: vscode.TextEditorDecorationType | null = null
+let decoBool: vscode.TextEditorDecorationType | null = null
 let decoOpNeg: vscode.TextEditorDecorationType | null = null
 let decoOpSilent: vscode.TextEditorDecorationType | null = null
 let decoOpCount: vscode.TextEditorDecorationType | null = null
 let decoOpCountDelim: vscode.TextEditorDecorationType | null = null
 
 export const HexRegex = /^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+export const NumberRegex = /^-?\d+(?:\.\d+)?$/
+export const BooleanRegex = /^(?:true|false)$/
+
+const NumberThemeColor = "debugTokenExpression.number"
+const BooleanThemeColor = "debugTokenExpression.boolean"
 
 /**
  * Checks whether the input is a valid hex color.
  * @param input The input text.
- * @returns
  */
 function isValidHex(input: string) {
     return HexRegex.test(input.trim())
@@ -44,29 +52,48 @@ function isValidHex(input: string) {
 /**
  * Resolves a color input.
  * @param input The input text.
- * @param fallback The color fallback value.
- * @returns 
+ * @param color The color fallback value.
  */
-export function resolveColor(input: unknown, fallback: string) {
-    if (typeof input !== "string") return fallback
-    const hex = input.trim()
-    if (!isValidHex(hex)) return fallback
+export function resolveColor(input: unknown, color: string) {
+    const hex = typeof input === "string" ? input.trim() : ""
+    if (!isValidHex(hex)) return color
     return hex.startsWith("#") ? hex : ("#" + hex)
+}
+
+/**
+ * Resolves a color input for themes.
+ * @param input The input text.
+ * @param themeColor The theme color id fallback value.
+ */
+function resolveThemeColor(input: unknown, themeColor: string) {
+    const hex = typeof input === "string" ? input.trim() : ""
+    if (!isValidHex(hex)) return new vscode.ThemeColor(themeColor)
+    return hex.startsWith("#") ? hex : ("#" + hex)
+}
+
+/**
+ * Returns the raw key of a color.
+ * @param color The color input.
+ */
+function colorKey(color: string | vscode.ThemeColor) {
+    return typeof color === "string" ? color : "theme:" + color.id
 }
 
 /**
  * Resolves a font style.
  * @param style The style to resolve.
- * @returns 
  */
 function resolveFontStyle(style?: FunctionStyle) {
     switch (style) {
         case "bold":
             return { fontWeight: "bold" }
+
         case "italic":
             return { fontStyle: "italic" }
+
         case "bold-italic":
             return { fontWeight: "bold", fontStyle: "italic" }
+
         default:
             return { fontWeight: "normal", fontStyle: "normal" }
     }
@@ -89,6 +116,8 @@ function ensureDecorations() {
     const semiColor = resolveColor(colors.function?.semicolon, "#C586C0")
 
     const condColor = resolveColor(colors.arguments?.condition, "#4FC1FF")
+    const numColor = resolveThemeColor(colors.arguments?.number, NumberThemeColor)
+    const boolColor = resolveThemeColor(colors.arguments?.boolean, BooleanThemeColor)
 
     const negColor = resolveColor(colors.operators?.negation, dollarColor)
     const silentColor = resolveColor(colors.operators?.silent, dollarColor)
@@ -104,26 +133,36 @@ function ensureDecorations() {
         silentColor,
         countColor,
         countDelimColor,
+        colorKey(numColor),
+        colorKey(boolColor),
         JSON.stringify(fnStyle)
     ].join("|")
 
     if (key === lastDecoKey && decoFn) return
     lastDecoKey = key
 
-    for (const d of [decoFn, decoDollar, decoSemi, decoCond, decoOpNeg, decoOpSilent, decoOpCount, decoOpCountDelim]) {
-        d?.dispose()
-    }
+    const decoTypes = [
+        decoFn,
+        decoDollar,
+        decoSemi,
+        decoCond,
+        decoNum,
+        decoBool,
+        decoOpNeg,
+        decoOpSilent,
+        decoOpCount,
+        decoOpCountDelim
+    ]
 
-    decoFn = vscode.window.createTextEditorDecorationType({
-        color: fnColor,
-        ...fnStyle
-    })
-    decoDollar = vscode.window.createTextEditorDecorationType({
-        color: dollarColor,
-        ...fnStyle
-    })
+    for (const d of decoTypes) d?.dispose()
+
+    decoFn = vscode.window.createTextEditorDecorationType({ color: fnColor, ...fnStyle })
+    decoDollar = vscode.window.createTextEditorDecorationType({ color: dollarColor, ...fnStyle })
     decoSemi = vscode.window.createTextEditorDecorationType({ color: semiColor })
+
     decoCond = vscode.window.createTextEditorDecorationType({ color: condColor })
+    decoNum = vscode.window.createTextEditorDecorationType({ color: numColor })
+    decoBool = vscode.window.createTextEditorDecorationType({ color: boolColor })
 
     decoOpNeg = vscode.window.createTextEditorDecorationType({ color: negColor })
     decoOpSilent = vscode.window.createTextEditorDecorationType({ color: silentColor })
@@ -131,9 +170,92 @@ function ensureDecorations() {
     decoOpCountDelim = vscode.window.createTextEditorDecorationType({ color: countDelimColor })
 }
 
+/**
+ * Splits a condition argument into its operands.
+ * @param input The argument value.
+ */
+export function splitConditionOperands(input: string) {
+    const operands: ParsedArg[] = []
+    let depth = 0
+    let start = 0
+
+    const push = (end: number) => operands.push({
+        value: input.slice(start, end),
+        start,
+        end
+    })
+
+    for (let i = 0; i < input.length; i++) {
+        const ch = input[i]
+
+        if (ch === "[" && isOpeningBracket(input, i)) {
+            depth++
+            continue
+        }
+
+        if (ch === "]" && depth > 0 && !isEscaped(input, i)) {
+            depth--
+            continue
+        }
+
+        if (depth > 0) continue
+
+        const separator = ConditionOperators.find((op) => input.startsWith(op, i))
+        if (separator) {
+            push(i)
+            start = i + separator.length
+            i += separator.length - 1
+        }
+    }
+
+    push(input.length)
+    return operands
+}
+
+/**
+ * Collects the range of a value if it is a plain number or boolean literal.
+ * @param doc The text document.
+ * @param value The raw value.
+ * @param offset The document offset of the raw value.
+ * @param allowNumber Whether number literals should be collected.
+ * @param allowBoolean Whether boolean literals should be collected.
+ * @param numbers The number ranges to push into.
+ * @param booleans The boolean ranges to push into.
+ */
+function collectLiteral(
+    doc: vscode.TextDocument,
+    value: string,
+    offset: number,
+    allowNumber: boolean,
+    allowBoolean: boolean,
+    numbers: vscode.Range[],
+    booleans: vscode.Range[]
+) {
+    const trimmed = value.trim()
+    if (!trimmed) return
+
+    const start = offset + (value.length - value.trimStart().length)
+    const range = new vscode.Range(doc.positionAt(start), doc.positionAt(start + trimmed.length))
+
+    if (allowNumber && NumberRegex.test(trimmed)) numbers.push(range)
+    else if (allowBoolean && BooleanRegex.test(trimmed)) booleans.push(range)
+}
+
 async function applyDecorations(editor: vscode.TextEditor) {
     ensureDecorations()
-    if (!decoFn || !decoDollar || !decoSemi || !decoCond || !decoOpNeg || !decoOpSilent || !decoOpCount || !decoOpCountDelim) {
+
+    if (
+        !decoFn ||
+        !decoDollar ||
+        !decoSemi ||
+        !decoCond ||
+        !decoNum ||
+        !decoBool ||
+        !decoOpNeg ||
+        !decoOpSilent ||
+        !decoOpCount ||
+        !decoOpCountDelim
+    ) {
         return
     }
 
@@ -144,6 +266,8 @@ async function applyDecorations(editor: vscode.TextEditor) {
     const dollarRanges: vscode.Range[] = []
     const semiRanges: vscode.Range[] = []
     const condRanges: vscode.Range[] = []
+    const numRanges: vscode.Range[] = []
+    const boolRanges: vscode.Range[] = []
     const opNegRanges: vscode.Range[] = []
     const opSilentRanges: vscode.Range[] = []
     const opCountRanges: vscode.Range[] = []
@@ -156,7 +280,8 @@ async function applyDecorations(editor: vscode.TextEditor) {
     while ((match = ScanRegex.exec(text))) {
         const matchIndex = match.index
         const startPos = doc.positionAt(matchIndex)
-        if (!locateCodeBlock(doc, startPos) || isEscaped(text, matchIndex) || isIgnored(text, matchIndex)) continue
+        const block = locateCodeBlock(doc, startPos)
+        if (!block || isEscaped(text, matchIndex) || isIgnored(text, matchIndex, block)) continue
 
         const full = match[0]
         const hasOpening = full.endsWith("[")
@@ -210,7 +335,7 @@ async function applyDecorations(editor: vscode.TextEditor) {
         if (!acceptsArgs || !full.endsWith("[")) continue
 
         const openIndex = matchIndex + full.length - 1
-        const closeIndex = findMatchingBracket(text, openIndex)
+        const closeIndex = findMatchingBracket(text, openIndex, block.end)
         if (closeIndex === -1) continue
 
         const argText = text.slice(openIndex + 1, closeIndex)
@@ -219,13 +344,31 @@ async function applyDecorations(editor: vscode.TextEditor) {
         for (let i = 0; i < args.length; i++) {
             const arg = args[i]
             const meta = fn.args?.[Math.min(i, fn.args.at(-1)?.rest ? fn.args.length - 1 : i)]
-            if (!meta?.condition) continue
+            if (!meta) continue
 
-            const op = findConditionOperator(arg.value)
-            if (op) {
-                const start = openIndex + 1 + arg.start + op.start
-                const end = start + op.operator.length
-                condRanges.push(new vscode.Range(doc.positionAt(start), doc.positionAt(end)))
+            const argOffset = openIndex + 1 + arg.start
+
+            if (meta.condition) {
+                for (const operand of splitConditionOperands(arg.value)) {
+                    collectLiteral(doc, operand.value, argOffset + operand.start, true, true, numRanges, boolRanges)
+                }
+
+                const op = findConditionOperator(arg.value)
+                if (op) {
+                    const start = argOffset + op.start
+                    const end = start + op.operator.length
+                    condRanges.push(new vscode.Range(doc.positionAt(start), doc.positionAt(end)))
+                }
+            } else {
+                collectLiteral(
+                    doc,
+                    arg.value,
+                    argOffset,
+                    meta.type === "Number",
+                    meta.type === "Boolean",
+                    numRanges,
+                    boolRanges
+                )
             }
         }
 
@@ -246,6 +389,8 @@ async function applyDecorations(editor: vscode.TextEditor) {
     editor.setDecorations(decoDollar, dollarRanges)
     editor.setDecorations(decoSemi, semiRanges)
     editor.setDecorations(decoCond, condRanges)
+    editor.setDecorations(decoNum, numRanges)
+    editor.setDecorations(decoBool, boolRanges)
     editor.setDecorations(decoOpNeg, opNegRanges)
     editor.setDecorations(decoOpSilent, opSilentRanges)
     editor.setDecorations(decoOpCount, opCountRanges)
@@ -266,12 +411,23 @@ export function registerDecorations(ctx: vscode.ExtensionContext) {
         }
     }
 
+    const decoTypes = [
+        decoFn,
+        decoDollar,
+        decoSemi,
+        decoCond,
+        decoNum,
+        decoBool,
+        decoOpNeg,
+        decoOpSilent,
+        decoOpCount,
+        decoOpCountDelim
+    ]
+
     ctx.subscriptions.push(
         {
             dispose: () => {
-                for (const d of [decoFn, decoDollar, decoSemi, decoCond, decoOpNeg, decoOpSilent, decoOpCount, decoOpCountDelim]) {
-                    d?.dispose()
-                }
+                for (const d of decoTypes) d?.dispose()
             }
         },
         vscode.window.onDidChangeVisibleTextEditors(() => updateAll()),

@@ -32,10 +32,11 @@ export function registerFolding(ctx: vscode.ExtensionContext) {
                 while ((match = FunctionOpenScanRegex.exec(text))) {
                     const index = match.index
                     const startPos = document.positionAt(index)
-                    if (!locateCodeBlock(document, startPos) || isEscaped(text, index) || isIgnored(text, index)) continue
+                    const block = locateCodeBlock(document, startPos)
+                    if (!block || isEscaped(text, index) || isIgnored(text, index, block)) continue
 
                     const openIndex = index + match[0].length - 1
-                    const closeIndex = findMatchingBracket(text, openIndex)
+                    const closeIndex = findMatchingBracket(text, openIndex, block.end)
                     if (closeIndex === -1) continue
 
                     const startLine = document.positionAt(openIndex).line

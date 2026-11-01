@@ -30,8 +30,9 @@ export function registerAutocompletion(ctx: vscode.ExtensionContext) {
         vscode.languages.registerCompletionItemProvider(Languages, {
             async provideCompletionItems(document, position) {
                 const config = getExtensionConfig()
-                if (!locateCodeBlock(document, position) || !config.features.autocompletion) return
-                if (isIgnored(document.getText(), document.offsetAt(position))) return
+                const block = locateCodeBlock(document, position)
+                if (!block || !config.features.autocompletion) return
+                if (isIgnored(document.getText(), document.offsetAt(position), block)) return
 
                 const line = document.lineAt(position).text
                 const before = line.substring(0, position.character)

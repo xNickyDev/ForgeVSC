@@ -3,7 +3,7 @@
   "displayName": "ForgeVSC",
   "description": "%extension.description%",
   "publisher": "tryforge",
-  "version": "1.2.14",
+  "version": "1.3.0",
   "icon": "./assets/ForgeScript.png",
   "main": "./out/extension.js",
   "browser": "./out/web/extension.js",
@@ -338,8 +338,24 @@
           "pattern": "^(?:#?(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?))?$",
           "patternErrorMessage": "%config.workspace.colors.arguments.condition.patternError%"
         },
-        "forgevsc.workspace.colors.operators.negation": {
+        "forgevsc.workspace.colors.arguments.number": {
           "order": 14,
+          "type": "string",
+          "default": "",
+          "description": "%config.workspace.colors.arguments.number.description%",
+          "pattern": "^(?:#?(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?))?$",
+          "patternErrorMessage": "%config.workspace.colors.arguments.number.patternError%"
+        },
+        "forgevsc.workspace.colors.arguments.boolean": {
+          "order": 15,
+          "type": "string",
+          "default": "",
+          "description": "%config.workspace.colors.arguments.boolean.description%",
+          "pattern": "^(?:#?(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?))?$",
+          "patternErrorMessage": "%config.workspace.colors.arguments.boolean.patternError%"
+        },
+        "forgevsc.workspace.colors.operators.negation": {
+          "order": 16,
           "type": "string",
           "default": "#4FA3FF",
           "description": "%config.workspace.colors.operators.negation.description%",
@@ -347,7 +363,7 @@
           "patternErrorMessage": "%config.workspace.colors.operators.negation.patternError%"
         },
         "forgevsc.workspace.colors.operators.silent": {
-          "order": 15,
+          "order": 17,
           "type": "string",
           "default": "#FF9F43",
           "description": "%config.workspace.colors.operators.silent.description%",
@@ -355,7 +371,7 @@
           "patternErrorMessage": "%config.workspace.colors.operators.silent.patternError%"
         },
         "forgevsc.workspace.colors.operators.count": {
-          "order": 16,
+          "order": 18,
           "type": "string",
           "default": "#33D17A",
           "description": "%config.workspace.colors.operators.count.description%",
@@ -363,9 +379,8 @@
           "patternErrorMessage": "%config.workspace.colors.operators.count.patternError%"
         },
         "forgevsc.workspace.colors.operators.countDelimiter": {
-          "order": 17,
+          "order": 19,
           "type": "string",
-          "default": "#76E3A0",
           "description": "%config.workspace.colors.operators.countDelimiter.description%",
           "pattern": "^(?:#?(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?))?$",
           "patternErrorMessage": "%config.workspace.colors.operators.countDelimiter.patternError%"
@@ -405,6 +420,21 @@
           "type": "boolean",
           "default": true,
           "description": "%config.workspace.features.autocompletion.description%"
+        },
+        "forgevsc.workspace.features.variables": {
+          "order": 36,
+          "type": "boolean",
+          "default": true,
+          "tags": [
+            "experimental"
+          ],
+          "markdownDescription": "%config.workspace.features.variables.description%"
+        },
+        "forgevsc.workspace.features.quickFixes": {
+          "order": 37,
+          "type": "boolean",
+          "default": true,
+          "description": "%config.workspace.features.quickFixes.description%"
         },
         "forgevsc.workspace.rpc.enabled": {
           "order": 50,
@@ -522,6 +552,15 @@
             "type": "string"
           },
           "markdownDescription": "%config.workspace.rpc.ignoredWorkspaces.description%"
+        },
+        "forgevsc.workspace.experimental.enabled": {
+          "order": 70,
+          "type": "boolean",
+          "default": false,
+          "tags": [
+            "experimental"
+          ],
+          "markdownDescription": "%config.workspace.experimental.enabled.description%"
         }
       }
     }
@@ -551,10 +590,10 @@
     "@vscode/l10n-dev": "^0.0.35",
     "@vscode/test-web": "^0.0.81",
     "@vscode/vsce": "^4.0.0",
-    "dotenv-cli": "^11.0.0",
+    "dotenv-cli": "^11.1.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
-    "ovsx": "^1.2.0"
+    "ovsx": "^1.3.0"
   },
   "dependencies": {
     "@xhayper/discord-rpc": "^1.5.1",

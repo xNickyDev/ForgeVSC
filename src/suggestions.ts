@@ -32,14 +32,14 @@ export function registerSuggestions(ctx: vscode.ExtensionContext) {
 
 class ForgeInlineCompletionItemProvider implements vscode.InlineCompletionItemProvider {
 	async provideInlineCompletionItems(document: vscode.TextDocument, position: vscode.Position) {
-		const code = locateCodeBlock(document, position)
+		const block = locateCodeBlock(document, position)
 		const config = getExtensionConfig()
-		if (!code || !config.features.suggestions) return 
-		
-		const text = document.getText()
-		if (isIgnored(text, document.offsetAt(position))) return
+		if (!block || !config.features.suggestions) return
 
-		const slice = code.slice.replace(/[ \t\r]+$/g, "")
+		const text = document.getText()
+		if (isIgnored(text, document.offsetAt(position), block)) return
+
+		const slice = block.slice.replace(/[ \t\r]+$/g, "")
 		const nextChar = document.getText(new vscode.Range(position, position.translate(0, 1)))
 
 		// Suggest brackets
@@ -58,16 +58,16 @@ class ForgeInlineCompletionItemProvider implements vscode.InlineCompletionItemPr
 
 		// Suggest closing bracket
 		if (nextChar !== "]") {
-			const openIndex = findOpeningBracket(code.slice)
+			const openIndex = findOpeningBracket(block.slice)
 			if (openIndex !== -1) {
-				const head = code.slice.slice(0, openIndex)
+				const head = block.slice.slice(0, openIndex)
 				const index = head.lastIndexOf("$")
 				if (index !== -1 && isEscaped(head, index)) return null
 
 				if (FunctionHeadRegex.test(head)) {
-					const block = text.slice(code.start, code.end)
-					const close = findMatchingBracket(block, openIndex)
-					const missingClosing = bracketDepth(block) > 0
+					const code = text.slice(block.start, block.end)
+					const close = findMatchingBracket(code, openIndex)
+					const missingClosing = bracketDepth(code) > 0
 
 					if (close === -1 || missingClosing) {
 						return [new vscode.InlineCompletionItem("]", new vscode.Range(position, position))]

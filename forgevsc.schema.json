@@ -65,6 +65,20 @@
               "description": "The highlight color used for argument condition operators.",
               "pattern": "^(?:#?(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?))?$",
               "errorMessage": "Input must be a valid hex color, e.g. #4FC1FF"
+            },
+            "number": {
+              "type": "string",
+              "default": "",
+              "description": "The highlight color used for number arguments and number operands in conditions. Leave empty to use the number color of your theme.",
+              "pattern": "^(?:#?(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?))?$",
+              "errorMessage": "Input must be a valid hex color, e.g. #E5C07B"
+            },
+            "boolean": {
+              "type": "string",
+              "default": "",
+              "description": "The highlight color used for boolean arguments and boolean operands in conditions. Leave empty to use the boolean color of your theme.",
+              "pattern": "^(?:#?(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?))?$",
+              "errorMessage": "Input must be a valid hex color, e.g. #56B6C2"
             }
           }
         },
@@ -139,6 +153,16 @@
           "type": "boolean",
           "default": true,
           "description": "Whether autocompletion for functions and arguments should be enabled."
+        },
+        "variables": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether diagnostics for unused and undefined variables should be enabled. Experimental: Only has an effect while experimental features are enabled in extension settings (forgevsc.workspace.experimental.enabled)."
+        },
+        "quickFixes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether quick fixes for diagnostics should be enabled."
         }
       }
     }

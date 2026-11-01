@@ -39,12 +39,18 @@
   "config.workspace.colors.operators.count.patternError": "Input must be a valid hex color, e.g. #33D17A",
   "config.workspace.colors.operators.countDelimiter.description": "The highlight color used for the count operator delimiter (separator).",
   "config.workspace.colors.operators.countDelimiter.patternError": "Input must be a valid hex color, e.g. #76E3A0",
+  "config.workspace.colors.arguments.number.description": "The highlight color used for number arguments and number operands in conditions. Leave empty to use the number color of your theme.",
+  "config.workspace.colors.arguments.number.patternError": "Input must be a valid hex color, e.g. #E5C07B",
+  "config.workspace.colors.arguments.boolean.description": "The highlight color used for boolean arguments and boolean operands in conditions. Leave empty to use the boolean color of your theme.",
+  "config.workspace.colors.arguments.boolean.patternError": "Input must be a valid hex color, e.g. #56B6C2",
   "config.workspace.features.folding.description": "Whether folding for multi-line function contents should be enabled.",
   "config.workspace.features.hoverInfo.description": "Whether hover info cards for functions and operators should be enabled.",
   "config.workspace.features.suggestions.description": "Whether suggestions for bracket placement should be enabled.",
   "config.workspace.features.signatureHelp.description": "Whether signature help for function arguments should be enabled.",
-  "config.workspace.features.diagnostics.description": "Whether diagnostics for function validation should be enabled.",
+  "config.workspace.features.diagnostics.description": "Whether diagnostics for validation should be enabled.",
   "config.workspace.features.autocompletion.description": "Whether autocompletion for functions and arguments should be enabled.",
+  "config.workspace.features.variables.description": "Whether diagnostics for unused and undefined variables should be enabled.\n\n**Experimental:** Requires `#forgevsc.workspace.experimental.enabled#` to be turned on. May produce false positives.",
+  "config.workspace.features.quickFixes.description": "Whether quick fixes for diagnostics should be enabled.",
   "config.workspace.rpc.enabled.description": "Whether to enable the custom Discord RPC (Rich Presence) for this extension.",
   "config.workspace.rpc.details.description": "The first line of the activity, shown while editing a file. Leave empty to hide.\n\n**Placeholders:**\n\n- `{file_name}`: Name of the active file, e.g. `index.ts`\n- `{file_extension}`: Extension of the active file, e.g. `ts`\n- `{language}`: Language of the active file, e.g. `TypeScript`\n- `{workspace}`: Name of the workspace\n- `{folder}`: Name of the directory the active file is in\n- `{line}`: Current cursor line\n- `{column}`: Current cursor column\n- `{total_lines}`: Total number of lines in the active file\n- `{git_branch}`: Current Git branch, empty if unavailable\n- `{extension_version}`: Installed ForgeVSC version\n\nDiscord requires 2 to 128 characters. Longer text is truncated. Text shorter than 2 characters hides the line.",
   "config.workspace.rpc.state.description": "The second line of the activity, shown while editing a file. Leave empty to hide.\n\nSupports the same placeholders as `#forgevsc.workspace.rpc.details#`.",
@@ -63,5 +69,6 @@
   "config.workspace.rpc.buttons.label.description": "The text shown on the button. Maximum 32 characters.",
   "config.workspace.rpc.buttons.url.description": "The URL opened when the button is clicked. Must start with `http://` or `https://`.",
   "config.workspace.rpc.buttons.url.patternError": "The URL must start with http:// or https://",
-  "config.workspace.rpc.ignoredWorkspaces.description": "The names of workspaces or workspace folders for which no Discord activity is shown. Any activity already shown is cleared while one of these is open. Use this to keep private or work projects off your profile.\n\nMatches the workspace name or the name of any of its folders exactly, e.g. `my-secret-bot`."
+  "config.workspace.rpc.ignoredWorkspaces.description": "The names of workspaces or workspace folders for which no Discord activity is shown. Any activity already shown is cleared while one of these is open. Use this to keep private or work projects off your profile.\n\nMatches the workspace name or the name of any of its folders exactly, e.g. `my-secret-bot`.",
+  "config.workspace.experimental.enabled.description": "Whether experimental features should be enabled. Experimental features may be unstable, produce false positives, or change and be removed without notice.\n\nCurrently includes:\n\n- Unused and undefined variable diagnostics (`#forgevsc.workspace.features.variables#`)"
 }

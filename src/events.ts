@@ -3,9 +3,39 @@
 * Copyright © 2026 BotForge
 */
 
-import { buildEventURL, findEvents, findGuide, getExtensionConfig, getPackageName, isIgnored, Languages } from "."
+import {
+    buildEventURL,
+    createDiagnostic,
+    DiagnosticCode,
+    DocsUrl,
+    EventMetadata,
+    findEvents,
+    findGuide,
+    getEvents,
+    getExtensionConfig,
+    getPackageName,
+    isIgnored,
+    Languages
+} from "."
 import * as vscode from "vscode"
 import ts from "typescript"
+
+function levenshtein(a: string, b: string) {
+    const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)])
+    for (let j = 1; j <= b.length; j++) dp[0][j] = j
+
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            dp[i][j] = Math.min(
+                dp[i - 1][j] + 1,
+                dp[i][j - 1] + 1,
+                dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+            )
+        }
+    }
+
+    return dp[a.length][b.length]
+}
 
 function collectEventTypeLiterals(sf: ts.SourceFile) {
     const literals: ts.StringLiteral[] = []
@@ -38,6 +68,29 @@ function collectEventTypeLiterals(sf: ts.SourceFile) {
 }
 
 /**
+ * Returns the closest known event names for an event name.
+ * @param input The typed event name.
+ * @param events The known events.
+ * @param limit The maximum amount of suggestions.
+ */
+export function getEventSuggestions(input: string, events: EventMetadata[], limit: number = 3) {
+    const wanted = input.toLowerCase()
+    const maxDistance = Math.max(2, Math.floor(input.length / 3))
+    const deprecated = new Set(events.filter((x) => x.deprecated).map((x) => x.name))
+
+    return [...new Set(events.map((x) => x.name))]
+        .map((name) => ({ name, distance: levenshtein(wanted, name.toLowerCase()) }))
+        .filter((x) => x.distance <= maxDistance)
+        .sort((a, b) =>
+            Number(deprecated.has(a.name)) - Number(deprecated.has(b.name)) ||
+            a.distance - b.distance ||
+            a.name.localeCompare(b.name)
+        )
+        .slice(0, limit)
+        .map((x) => x.name)
+}
+
+/**
  * Validates all event types for a document.
  * @param document The text document.
  * @param diagnostics The diagnostics array to push into.
@@ -54,24 +107,41 @@ export async function validateEventTypes(document: vscode.TextDocument, diagnost
 
     const sf = ts.createSourceFile(document.fileName, text, ts.ScriptTarget.Latest, true, kind)
     const literals = collectEventTypeLiterals(sf)
+    const known = await getEvents()
 
     for (const literal of literals) {
-        const events = await findEvents(literal.text)
-        if (!events.length || !events.every((x) => x.deprecated)) continue
-
         const start = document.positionAt(literal.getStart(sf) + 1)
         const end = document.positionAt(literal.getEnd() - 1)
         const range = new vscode.Range(start, end)
+        const events = await findEvents(literal.text)
 
-        const hint = new vscode.Diagnostic(
+        if (!events.length) {
+            if (!known.length) continue
+            const [suggestion] = getEventSuggestions(literal.text, known)
+            diagnostics.push(createDiagnostic(
+                range,
+                suggestion
+                    ? vscode.l10n.t(`Unknown event "{0}". Did you mean \`{1}\`?`, literal.text, suggestion)
+                    : vscode.l10n.t(`Unknown event "{0}"`, literal.text),
+                vscode.DiagnosticSeverity.Error,
+                DiagnosticCode.UnknownEvent
+            ))
+            continue
+        }
+
+        if (!events.every((x) => x.deprecated)) continue
+
+        const hint = createDiagnostic(
             range,
             vscode.l10n.t("This event is deprecated and its use is discouraged. It may be removed in upcoming releases. Use a supported alternative if available."),
-            vscode.DiagnosticSeverity.Hint
+            vscode.DiagnosticSeverity.Hint,
+            DiagnosticCode.DeprecatedEvent
         )
-        const warning = new vscode.Diagnostic(
+        const warning = createDiagnostic(
             range,
             vscode.l10n.t("Event `{0}` is deprecated. Use an available alternative instead", literal.text),
-            vscode.DiagnosticSeverity.Warning
+            vscode.DiagnosticSeverity.Warning,
+            DiagnosticCode.DeprecatedEvent
         )
         warning.tags = [vscode.DiagnosticTag.Deprecated]
         diagnostics.push(hint, warning)
@@ -128,7 +198,7 @@ export function registerEventHover(ctx: vscode.ExtensionContext) {
                             if (sourceUrl) links.push(`[$(github) ${vscode.l10n.t("Source")}](${sourceUrl})`)
                             const guide = await findGuide({ targetType: "event", targetName: name })
                             const pkgName = guide?.packageName || getPackageName(source)
-                            if (pkgName) links.push(`[$(extensions) ${vscode.l10n.t("Documentation")}](https://docs.botforge.org/event/${name}?p=${pkgName})`)
+                            if (pkgName) links.push(`[$(extensions) ${vscode.l10n.t("Documentation")}](${DocsUrl}event/${name}?p=${pkgName})`)
                             if (guide) {
                                 const cmd = vscode.Uri.parse(
                                     `command:forgevsc.previewGuide?${encodeURIComponent(JSON.stringify([guide.id]))}`

@@ -24,6 +24,7 @@ import {
 	registerFunctionHover,
 	registerGuidePreview,
 	registerGuidesView,
+	registerQuickFixes,
 	registerRPC,
 	registerSignatureHelp,
 	registerSuggestions,
@@ -48,6 +49,12 @@ export type ParsedArg = {
 	end: number
 }
 
+export type CodeBlock = {
+	start: number
+	end: number
+	quoteChar: string
+}
+
 export type FunctionMetadata = IMetadataFunction & {
 	source?: PackageSource
 	location?: FunctionLocation
@@ -66,6 +73,8 @@ export interface IMetadataCache<T> {
 	timestamp: number
 	metadata: T
 }
+
+const blockCache = new Map<string, { version: number, blocks: CodeBlock[] }>()
 
 let functions: FunctionMetadata[] | null = null
 let functionsPromise: Promise<FunctionMetadata[]> | null = null
@@ -152,6 +161,8 @@ export const ConditionOperatorInfo = {
 } as const
 
 export type OperatorType = keyof typeof ConditionOperatorInfo
+export const ConditionOperators = (Object.keys(ConditionOperatorInfo) as OperatorType[])
+	.sort((a, b) => b.length - a.length)
 
 /**
  * Activates the extension.
@@ -241,6 +252,7 @@ async function initialize(ctx: vscode.ExtensionContext) {
 	registerAutocompletion(ctx)
 	registerSignatureHelp(ctx)
 	registerSuggestions(ctx)
+	registerQuickFixes(ctx)
 
 	const diagnostics = vscode.languages.createDiagnosticCollection("forge")
 	ctx.subscriptions.push(diagnostics)
@@ -1073,26 +1085,18 @@ export async function getPaths(source: PackageSource) {
 }
 
 /**
- * Locates the code block and returns relevant data.
- * @param document The text document.
- * @param position The current position of the cursor.
- * @returns 
+ * Finds all code blocks in the provided text.
+ * @param text The document text.
  */
-export function locateCodeBlock(document: vscode.TextDocument, position: vscode.Position) {
-	const text = document.getText()
-	const offset = document.offsetAt(position)
-
+export function findCodeBlocks(text: string) {
+	const blocks: CodeBlock[] = []
 	const CodeRegex = /code:\s*(["`'])/g
 	let match: RegExpExecArray | null
 
-	while ((match = CodeRegex.exec(text)) !== null) {
+	while ((match = CodeRegex.exec(text))) {
 		const quoteChar = match[1]
 		const start = CodeRegex.lastIndex
-
-		if (isInsideComment(text, match.index)) {
-			CodeRegex.lastIndex = start
-			continue
-		}
+		if (isInsideComment(text, match.index)) continue
 
 		let end = -1
 		for (let i = start; i < text.length; i++) {
@@ -1102,15 +1106,38 @@ export function locateCodeBlock(document: vscode.TextDocument, position: vscode.
 		}
 		if (end === -1) continue
 
-		if (offset >= start && offset <= end) {
-			const slice = text.slice(start, offset)
-			return { start, end, quoteChar, slice }
-		}
-
+		blocks.push({ start, end, quoteChar })
 		CodeRegex.lastIndex = end + 1
 	}
 
-	return null
+	return blocks
+}
+
+/**
+ * Gets all code blocks of a text document.
+ * @param document The text document.
+ */
+export function getDocumentCodeBlocks(document: vscode.TextDocument) {
+	const key = document.uri.toString()
+	const cached = blockCache.get(key)
+	if (cached?.version === document.version) return cached.blocks
+
+	const blocks = findCodeBlocks(document.getText())
+	blockCache.set(key, { version: document.version, blocks })
+	return blocks
+}
+
+/**
+ * Locates the current code block and returns relevant data.
+ * @param document The text document.
+ * @param position The current position of the cursor.
+ */
+export function locateCodeBlock(document: vscode.TextDocument, position: vscode.Position) {
+	const offset = document.offsetAt(position)
+	const block = getDocumentCodeBlocks(document).find((x) => offset >= x.start && offset <= x.end)
+	if (!block) return null
+
+	return { ...block, slice: document.getText().slice(block.start, offset) }
 }
 
 /**
@@ -1249,23 +1276,25 @@ export function isEscaped(input: string, i: number, single: boolean = false, min
  * Checks whether the input is inside an ignored instance.
  * @param input The input text.
  * @param index The index number.
- * @returns 
+ * @param block The current code block.
  */
-export function isIgnored(text: string, index: number) {
-	const regex = new RegExp(String.raw`\$${OperatorChain}(?:c|escapeCode|esc)\[`, "gi")
+export function isIgnored(text: string, index: number, block?: CodeBlock) {
+	const Regex = new RegExp(String.raw`\$${OperatorChain}(?:c|escapeCode|esc)\[`, "gi")
+	if (block) Regex.lastIndex = block.start
+
+	const limit = block?.end ?? text.length
 	let match: RegExpExecArray | null
 
-	while ((match = regex.exec(text))) {
+	while ((match = Regex.exec(text))) {
 		const start = match.index
+		if (start >= limit) break
 		if (isEscaped(text, start)) continue
 
 		const openBracket = start + match[0].length - 1
-		const closeBracket = findMatchingBracket(text, openBracket)
+		const closeBracket = findMatchingBracket(text, openBracket, limit)
 		if (closeBracket === -1) continue
 
-		if (index > start && index < closeBracket) {
-			return true
-		}
+		if (index > start && index < closeBracket) return true
 	}
 
 	return false
@@ -1338,12 +1367,12 @@ export function findOpeningBracket(input: string) {
  * Finds the matching bracket position from the start index.
  * @param input The input text.
  * @param openIndex The index of the opening bracket.
- * @returns 
+ * @param limit The index to stop searching at.
  */
-export function findMatchingBracket(input: string, openIndex: number) {
+export function findMatchingBracket(input: string, openIndex: number, limit: number = input.length) {
 	let depth = 1
 
-	for (let i = openIndex + 1; i < input.length; i++) {
+	for (let i = openIndex + 1; i < limit; i++) {
 		const c = input[i]
 
 		if (c === "[" && isOpeningBracket(input, i)) {
@@ -1383,22 +1412,12 @@ export function findConditionOperator(input: string) {
 
 		if (depth > 0) continue
 
-		const one = ch
-		const two = one + (input[i + 1] ?? "")
-
-		if (["==", "!=", "<=", ">="].includes(two)) {
+		const operator = ConditionOperators.find((op) => input.startsWith(op, i))
+		if (operator) {
 			return {
-				operator: two as OperatorType,
+				operator,
 				start: i,
-				end: i + 2
-			}
-		}
-
-		if (one === "<" || one === ">") {
-			return {
-				operator: one as OperatorType,
-				start: i,
-				end: i + 1
+				end: i + operator.length
 			}
 		}
 	}

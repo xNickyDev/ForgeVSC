@@ -42,6 +42,8 @@ export interface IExtensionConfig {
         }
         arguments?: {
             condition?: string
+            number?: string
+            boolean?: string
         }
         operators?: {
             negation?: string
@@ -62,8 +64,13 @@ export interface IExtensionConfig {
         signatureHelp?: boolean
         diagnostics?: boolean
         autocompletion?: boolean
+        variables?: boolean
+        quickFixes?: boolean
     }
     rpc?: IRPCConfig
+    experimental?: {
+        enabled?: boolean
+    }
 }
 
 export const Defaults: Required<IExtensionConfig> = {
@@ -77,7 +84,9 @@ export const Defaults: Required<IExtensionConfig> = {
             semicolon: "#C586C0",
         },
         arguments: {
-            condition: "#4FC1FF"
+            condition: "#4FC1FF",
+            number: "",
+            boolean: ""
         },
         operators: {
             negation: "#4FA3FF",
@@ -98,6 +107,8 @@ export const Defaults: Required<IExtensionConfig> = {
         signatureHelp: true,
         diagnostics: true,
         autocompletion: true,
+        variables: true,
+        quickFixes: true
     },
     rpc: {
         enabled: true,
@@ -114,6 +125,9 @@ export const Defaults: Required<IExtensionConfig> = {
         buttons: [],
         ignoredWorkspaces: []
     },
+    experimental: {
+        enabled: false
+    }
 }
 
 let cached: Required<IExtensionConfig> = Defaults
@@ -140,6 +154,8 @@ export function getSettingsConfig() {
                 },
                 arguments: {
                     condition: vs.get<string>("workspace.colors.arguments.condition"),
+                    number: vs.get<string>("workspace.colors.arguments.number"),
+                    boolean: vs.get<string>("workspace.colors.arguments.boolean")
                 },
                 operators: {
                     negation: vs.get<string>("workspace.colors.operators.negation"),
@@ -160,6 +176,8 @@ export function getSettingsConfig() {
                 signatureHelp: vs.get<boolean>("workspace.features.signatureHelp"),
                 diagnostics: vs.get<boolean>("workspace.features.diagnostics"),
                 autocompletion: vs.get<boolean>("workspace.features.autocompletion"),
+                variables: vs.get<boolean>("workspace.features.variables"),
+                quickFixes: vs.get<boolean>("workspace.features.quickFixes"),
             },
             rpc: {
                 enabled: vs.get<boolean>("workspace.rpc.enabled"),
@@ -175,7 +193,10 @@ export function getSettingsConfig() {
                 showRepositoryButton: vs.get<boolean>("workspace.rpc.showRepositoryButton"),
                 buttons: vs.get<IRPCButton[]>("workspace.rpc.buttons"),
                 ignoredWorkspaces: vs.get<string[]>("workspace.rpc.ignoredWorkspaces"),
-            }
+            },
+            experimental: {
+                enabled: vs.get<boolean>("workspace.experimental.enabled"),
+            },
         }
     }
 }
@@ -273,6 +294,8 @@ export async function loadExtensionConfig() {
             signatureHelp: file.features?.signatureHelp ?? vs.workspace.features?.signatureHelp ?? Defaults.features.signatureHelp,
             diagnostics: file.features?.diagnostics ?? vs.workspace.features?.diagnostics ?? Defaults.features.diagnostics,
             autocompletion: file.features?.autocompletion ?? vs.workspace.features?.autocompletion ?? Defaults.features.autocompletion,
+            variables: file.features?.variables ?? vs.workspace.features?.variables ?? Defaults.features.variables,
+            quickFixes: file.features?.quickFixes ?? vs.workspace.features?.quickFixes ?? Defaults.features.quickFixes,
         },
         rpc: {
             ...Defaults.rpc,
@@ -280,6 +303,9 @@ export async function loadExtensionConfig() {
                 Object.entries(vs.workspace.rpc).filter(([, v]) => v !== undefined)
             )
         } as IRPCConfig,
+        experimental: {
+            enabled: vs.workspace.experimental.enabled ?? Defaults.experimental.enabled,
+        },
     }
 
     return cached

@@ -1,5 +1,14 @@
 # Change Log
 
+## v1.3.1 <sub>(November 07, 2026)</sub>
+
+### Fixed
+- Fixed comment toggle nesting endlessly on partially selected comments
+- Fixed comment toggle wrapping whole line when selecting nested inline functions
+
+### Changed
+- Comment toggle no longer wraps inline selections that cut through functions
+
 ## v1.3.0 <sub>(November 01, 2026)</sub>
 
 ### Added

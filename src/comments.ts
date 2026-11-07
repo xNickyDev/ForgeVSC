@@ -3,7 +3,7 @@
 * Copyright © 2026 BotForge
 */
 
-import { findMatchingBracket, isEscaped, Languages, locateCodeBlock } from "."
+import { findMatchingBracket, isEscaped, isOpeningBracket, Languages, locateCodeBlock } from "."
 import * as vscode from "vscode"
 
 const CommentContextKey = "forgevsc.inCodeBlock"
@@ -75,6 +75,24 @@ function buildUnwrap(lines: string[], baseIndent: string, indentUnit: string) {
 }
 
 /**
+ * Checks whether the given text has balanced function brackets.
+ * @param text The text to check.
+ */
+function isBalanced(text: string) {
+    let depth = 0
+
+    for (let i = 0; i < text.length; i++) {
+        if (text[i] === "[" && isOpeningBracket(text, i)) depth++
+        else if (text[i] === "]" && !isEscaped(text, i)) {
+            depth--
+            if (depth < 0) return false
+        }
+    }
+
+    return depth === 0
+}
+
+/**
  * Checks whether the given lines form exactly one comment.
  * @param document The text document.
  * @param docText The full document text.
@@ -104,6 +122,74 @@ function isWrappedBlock(document: vscode.TextDocument, docText: string, range: v
 }
 
 /**
+ * Expands the line range to match the comment boundaries.
+ * @param docText The full document text.
+ * @param startLine The first selected line.
+ * @param endLine The last selected line.
+ */
+function expandToCommentBounds(document: vscode.TextDocument, docText: string, startLine: number, endLine: number) {
+    const pairs: { open: number, close: number }[] = []
+    const Regex = /\$c\[/gi
+    let match: RegExpExecArray | null
+
+    while ((match = Regex.exec(docText))) {
+        if (isEscaped(docText, match.index)) continue
+
+        const close = findMatchingBracket(docText, match.index + 2)
+        if (close === -1) continue
+
+        pairs.push({
+            open: document.positionAt(match.index).line,
+            close: document.positionAt(close).line
+        })
+    }
+
+    let changed = true
+    while (changed) {
+        changed = false
+
+        for (const pair of pairs) {
+            if (pair.open < startLine && pair.close >= startLine && pair.close <= endLine) {
+                startLine = pair.open
+                changed = true
+            }
+            else if (pair.open >= startLine && pair.open <= endLine && pair.close > endLine) {
+                endLine = pair.close
+                changed = true
+            }
+        }
+    }
+
+    return { startLine, endLine }
+}
+
+/**
+ * Computes the comment toggle edit for a selection within a single line.
+ * @param document The text document.
+ * @param selection The selection to toggle.
+ */
+function computeInlineToggle(document: vscode.TextDocument, selection: vscode.Selection): ToggleEdit | null {
+    const raw = document.getText(selection)
+    const text = raw.trim()
+    if (!text.length) return null
+
+    const leading = raw.length - raw.trimStart().length
+    const startOffset = document.offsetAt(selection.start) + leading
+    const range = new vscode.Range(
+        document.positionAt(startOffset),
+        document.positionAt(startOffset + text.length)
+    )
+
+    if (CommentOpenRegex.test(text) && findMatchingBracket(text, 2) === text.length - 1) {
+        return { range, text: text.slice(3, -1) }
+    }
+
+    if (!isBalanced(text)) return null
+
+    return { range, text: `$c[${text}]` }
+}
+
+/**
  * Computes the comment toggle edit for a single selection.
  * @param editor The active text editor.
  * @param selection The selection to toggle.
@@ -115,7 +201,20 @@ function computeToggle(editor: vscode.TextEditor, selection: vscode.Selection): 
     let startLine = selection.isEmpty ? selection.active.line : selection.start.line
     let endLine = selection.isEmpty ? selection.active.line : selection.end.line
 
-    if (!selection.isEmpty && selection.end.character === 0 && endLine > startLine) endLine--
+    if (
+        !selection.isEmpty &&
+        selection.start.line === selection.end.line &&
+        document.getText(selection).trim() !== document.lineAt(startLine).text.trim()
+    ) {
+        return computeInlineToggle(document, selection)
+    }
+
+    if (!selection.isEmpty && selection.end.character === 0 && endLine > startLine)
+        endLine--
+
+    const bounds = expandToCommentBounds(document, docText, startLine, endLine)
+    startLine = bounds.startLine
+    endLine = bounds.endLine
 
     const range = new vscode.Range(
         new vscode.Position(startLine, 0),

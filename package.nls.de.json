@@ -17,5 +17,8 @@
   "config.workspace.colors.operators.negation.patternError": "Eingabe muss eine gültige Hex-Farbe sein, z. B. #4FA3FF",
   "config.workspace.colors.operators.silent.patternError": "Eingabe muss eine gültige Hex-Farbe sein, z. B. #FF9F43",
   "config.workspace.colors.operators.count.patternError": "Eingabe muss eine gültige Hex-Farbe sein, z. B. #33D17A",
-  "config.workspace.colors.operators.countDelimiter.patternError": "Eingabe muss eine gültige Hex-Farbe sein, z. B. #76E3A0"
+  "config.workspace.colors.operators.countDelimiter.patternError": "Eingabe muss eine gültige Hex-Farbe sein, z. B. #76E3A0",
+  "config.workspace.colors.arguments.number.patternError": "Eingabe muss eine gültige Hex-Farbe sein, z. B. #E5C07B",
+  "config.workspace.colors.arguments.boolean.patternError": "Eingabe muss eine gültige Hex-Farbe sein, z. B. #56B6C2",
+  "config.workspace.rpc.buttons.url.patternError": "Die URL muss mit http:// oder https:// beginnen"
 }
